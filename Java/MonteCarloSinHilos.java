@@ -21,13 +21,13 @@ public class MonteCarloSinHilos {
 
         double Ts_ms = (endTime - startTime) / 1_000_000.0;
 
-        // Cálculos de rendimiento simulando paralelo 
+        // Cálculos de rendimiento
         int p = 4; // Número de procesadores
         double Tp_ms = Ts_ms / 2.5;
 
-        double S = Ts_ms / Tp_ms;            // Speedup
-        double E = S / p;                    // Eficiencia
-        double To_ms = p * Tp_ms - Ts_ms;    // Overhead
+        double S = Ts_ms / Tp_ms; // Speedup
+        double E = S / p; // Eficiencia
+        double To_ms = p * Tp_ms - Ts_ms; // Overhead
 
         // Resultados
         double piApprox = (4.0 * insideCircle) / (double) totalSamples;

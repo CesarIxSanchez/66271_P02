@@ -45,7 +45,7 @@ public class MonteCarlo {
         return new Result(inside, ms);
     }
 
-    // Ejecución paralela, devuelve [insideCircle, Tp(ms)]
+    // Ejecución paralela
     private static Result runParallel(long totalSamples, int numThreads) throws InterruptedException {
         globalCount.set(0);
 
@@ -56,7 +56,7 @@ public class MonteCarlo {
 
         List<Thread> threads = new ArrayList<>(numThreads);
         for (int i = 0; i < numThreads; i++) {
-            long samplesForThisThread = base + (i == numThreads - 1 ? rem : 0); // reparte el residuo
+            long samplesForThisThread = base + (i == numThreads - 1 ? rem : 0);
             Thread t = new Thread(new MonteCarloTask(samplesForThisThread, i));
             threads.add(t);
             t.start();
@@ -68,27 +68,27 @@ public class MonteCarlo {
         return new Result(globalCount.get(), ms);
     }
 
-    // Ayuda para devolver par (count, timeMs)
+    // Ayuda para devolver par
     private record Result(long count, double timeMs) {}
 
     public static void main(String[] args) throws InterruptedException {
         long totalSamples = 1_000_000L;
         int numThreads = 4;
 
-        // 1) Secuencial
+        // Secuencial
         Result seq = runSequential(totalSamples);
         double Ts_ms = seq.timeMs;
 
-        // 2) Paralelo
+        // Paralelo
         Result par = runParallel(totalSamples, numThreads);
         double Tp_ms = par.timeMs;
 
-        // 3) Métricas
-        double S  = Ts_ms / Tp_ms;            // Speedup
-        double E  = S / numThreads;           // Eficiencia
+        // Métricas
+        double S  = Ts_ms / Tp_ms; // Speedup
+        double E  = S / numThreads;  // Eficiencia
         double To_ms = numThreads * Tp_ms - Ts_ms; // Overhead
 
-        // 4) Pi
+        // Pi
         double piApprox = (4.0 * par.count) / (double) totalSamples;
         double truePi = 3.1415926535;
         double error = Math.abs(piApprox - truePi);
