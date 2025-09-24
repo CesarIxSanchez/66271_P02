@@ -1,52 +1,80 @@
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MonteCarloSinHilos {
 
-    public static void main(String[] args) {
-        long totalSamples = 1_000_000L;
+    // 1. Variable en memoria compartida
+    private static final AtomicLong globalCount = new AtomicLong(0);
 
-        // Ejecución secuencial
-        long startTime = System.nanoTime();
-        long insideCircle = 0;
+    // Tarea que ejecuta cada hilo
+    static class MonteCarloTask implements Runnable {
+        private final long numSamples;
+        private final int threadId;
 
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        for (long i = 0; i < totalSamples; i++) {
-            double x = rnd.nextDouble();
-            double y = rnd.nextDouble();
-            if (x * x + y * y <= 1.0) {
-                insideCircle++;
-            }
+        MonteCarloTask(long numSamples, int threadId) {
+            this.numSamples = numSamples;
+            this.threadId = threadId;
         }
-        long endTime = System.nanoTime();
 
-        double Ts_ms = (endTime - startTime) / 1_000_000.0;
+        @Override
+        public void run() {
+            long localCount = 0;
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
-        // Cálculos de rendimiento
-        int p = 4; // Número de procesadores
-        double Tp_ms = Ts_ms / 2.5;
+            for (long i = 0; i < numSamples; i++) {
+                // Generar un punto aleatorio (x, y) en el rango [0, 1)
+                double x = rnd.nextDouble();
+                double y = rnd.nextDouble();
+                // Verificar si el punto está dentro del círculo (x² + y² <= 1)
+                if (x * x + y * y <= 1.0) {
+                    localCount++;
+                }
+            }
 
-        double S = Ts_ms / Tp_ms; // Speedup
-        double E = S / p; // Eficiencia
-        double To_ms = p * Tp_ms - Ts_ms; // Overhead
+            // 2. ¡SECCIÓN CRÍTICA!
+            // Múltiples hilos intentan actualizar global_count al mismo tiempo.
+            long newTotal = globalCount.addAndGet(localCount);
+            System.out.printf("Hilo %d: añadiendo %d puntos al total (acumulado: %d).%n",
+                    threadId, localCount, newTotal);
+        }
+    }
 
-        // Resultados
-        double piApprox = (4.0 * insideCircle) / (double) totalSamples;
+    public static void main(String[] args) throws InterruptedException {
+        long startTime = System.nanoTime(); // Inicio
+
+        long totalSamples = 1_000_000L;
+        int numThreads = 4;
+        long samplesPerThread = totalSamples / numThreads;
+
+        List<Thread> threads = new ArrayList<>();
+
+        // Crear y lanzar hilos
+        for (int i = 0; i < numThreads; i++) {
+            Thread t = new Thread(new MonteCarloTask(samplesPerThread, i));
+            threads.add(t);
+            t.start();
+        }
+
+        // Esperar a que todos los hilos terminen
+        for (Thread t : threads) {
+            t.join();
+        }
+
+        // 3. Todos los hilos han terminado. El resultado final está en la variable compartida.
+        double piApprox = (4.0 * globalCount.get()) / (double) totalSamples;
         double truePi = 3.1415926535;
         double error = Math.abs(piApprox - truePi);
 
-        System.out.println("\nResultados");
-        System.out.printf("Número total de puntos: %d%n", totalSamples);
-        System.out.printf("Puntos dentro del círculo: %d%n", insideCircle);
-        System.out.printf("Pi ≈ %.10f (error = %.10f)%n", piApprox, error);
+        // Resultados
+        System.out.printf("\nNúmero total de puntos: %d%n", totalSamples);
+        System.out.printf("Puntos dentro del círculo: %d%n", globalCount.get());
+        System.out.printf("Aproximación de pi: %.10f%n", piApprox);
+        System.out.printf("Error: %.10f%n", error);
 
-        System.out.println("\nTiempos");
-        System.out.printf("T_s (secuencial): %.3f ms%n", Ts_ms);
-        System.out.printf("T_p (paralelo, con p=%d): %.3f ms%n", p, Tp_ms);
-
-        System.out.println("\nMétricas de rendimiento");
-        System.out.printf("Speedup (S) = T_s / T_p = %.3f / %.3f = %.3fx%n", Ts_ms, Tp_ms, S);
-        System.out.printf("Eficiencia (E) = S / p = %.3f / %d = %.3f (%.1f%%)%n", S, p, E, 100*E);
-        System.out.printf("Overhead (T_o) = p*T_p - T_s = %d*%.3f - %.3f = %.3f ms%n",
-                p, Tp_ms, Ts_ms, To_ms);
+        long endTime = System.nanoTime(); // Fin
+        double durationSeconds = (endTime - startTime) / 1_000_000_000.0; // En segundos
+        System.out.printf("Tiempo de ejecución: %.3f segundos%n", durationSeconds);
     }
 }
